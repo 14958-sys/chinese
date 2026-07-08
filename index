@@ -510,4 +510,141 @@
                 world.style.bottom = -cameraY + "px";
             }
 
-            if (Math.floor(p
+            if (Math.floor(pY/10) > maxHeightReached) {
+                maxHeightReached = Math.floor(pY/10);
+                scoreBoard.innerText = `ความสูง: ${maxHeightReached} เมตร`;
+            }
+
+            if (pY + window.innerHeight > nextPlatformHeight) generateNextPlatforms();
+
+            if (!isLavaStunned) {
+                let baseLavaSpeed = 0.24 + (maxHeightReached * 0.0035);
+                lavaY += baseLavaSpeed;
+            }
+
+            let maxAllowedLava = cameraY - 150; 
+            if (lavaY > maxAllowedLava) lavaY = maxAllowedLava; 
+            if (lavaY < cameraY - 780) lavaY = cameraY - 780; 
+
+            lava.style.bottom = lavaY + "px";
+            player.style.left = pX + "px"; 
+            player.style.bottom = pY + "px";
+
+            if (pY <= lavaY + 795) { 
+                isPlaying = false;
+                triggerQuiz();
+                return false;
+            }
+            return true;
+        }
+
+        function pickSmartQuestion() {
+            if (reviewList.length > 0) {
+                let picked = reviewList.shift(); 
+                localStorage.setItem('chinese_review_list', JSON.stringify(reviewList)); 
+                return picked;
+            }
+
+            let secondsElapsed = (Date.now() - gameStartTime) / 1000;
+
+            if (secondsElapsed > 60 && Math.random() < 0.40) {
+                return hardQuizData[Math.floor(Math.random() * hardQuizData.length)];
+            }
+
+            if (currentRoundPool.length === 0) {
+                initQuestionPool();
+            }
+            
+            let randomIndex = Math.floor(Math.random() * currentRoundPool.length);
+            let pickedQuestion = currentRoundPool[randomIndex];
+            
+            currentRoundPool.splice(randomIndex, 1);
+            return pickedQuestion;
+        }
+
+        function triggerQuiz() {
+            quizBox.style.display = "block";
+            timeLeft = 60;
+            document.getElementById('timer-text').innerText = `เวลาเหลือ: ${timeLeft} วินาที`;
+            document.getElementById('timer-fill').style.width = "100%";
+            writeInput.value = "";
+
+            currentQuiz = pickSmartQuestion();
+            document.getElementById('question_title').innerText = currentQuiz.q;
+
+            if (currentQuiz.type === 'choice') {
+                document.getElementById('options-zone').style.display = "block";
+                document.getElementById('write-zone').style.display = "none";
+                document.getElementById('options-zone').innerHTML = "";
+                currentQuiz.a.forEach(opt => {
+                    const btn = document.createElement('button');
+                    btn.className = "option-btn"; btn.innerText = opt;
+                    btn.onclick = () => checkAnswer(opt);
+                    document.getElementById('options-zone').appendChild(btn);
+                });
+            } else {
+                document.getElementById('options-zone').style.display = "none";
+                document.getElementById('write-zone').style.display = "block";
+                setTimeout(() => { writeInput.focus(); }, 50);
+            }
+
+            timerInterval = setInterval(() => {
+                timeLeft--;
+                document.getElementById('timer-text').innerText = `เวลาเหลือ: ${timeLeft} วินาที`;
+                document.getElementById('timer-fill').style.width = (timeLeft / 60) * 100 + "%";
+                if (timeLeft <= 0) { clearInterval(timerInterval); gameOver(); }
+            }, 1000);
+        }
+
+        function checkAnswer(ans) {
+            clearInterval(timerInterval);
+            if(ans === currentQuiz.correct) revivePlayer();
+            else gameOver();
+        }
+
+        function submitWriteAnswer() {
+            clearInterval(timerInterval);
+            let ans = writeInput.value.trim();
+            if(ans === currentQuiz.correct) revivePlayer();
+            else gameOver();
+        }
+
+        function revivePlayer() {
+            quizBox.style.display = "none";
+            lavaY = cameraY - 700; 
+            lava.style.bottom = lavaY + "px";
+            pY = cameraY + 140; pVy = jumpForce * 1.02; pVx = 0;
+            
+            isLavaStunned = true;
+            if (lavaStunTimeout) clearTimeout(lavaStunTimeout);
+            lavaStunTimeout = setTimeout(() => { isLavaStunned = false; }, 2000);
+
+            isPlaying = true;
+            requestAnimationFrame(gameLoop);
+            
+            gameToast.style.top = "20px";
+            setTimeout(() => { gameToast.style.top = "-100px"; }, 2200);
+        }
+
+        function gameOver() {
+            clearInterval(timerInterval);
+            quizBox.style.display = "none";
+            
+            document.getElementById('menu-title').innerText = "💥 เกมโอเวอร์ (Game Over)";
+            document.getElementById('menu-desc').innerHTML = `คุณทำความสูงได้: <b style='color:#ffeb3b;'>${maxHeightReached} เมตร</b>`;
+            
+            let correctAns = currentQuiz.correct;
+            document.getElementById('reveal-q').innerHTML = `${currentQuiz.q}<br>👉 <b style='color:#4caf50;'>คำตอบที่ถูกต้องคือ: "${correctAns}"</b>`;
+            document.getElementById('answer-reveal').style.display = "block";
+
+            let alreadyExists = reviewList.some(item => item.id === currentQuiz.id);
+            if (!alreadyExists) {
+                reviewList.push(currentQuiz);
+                localStorage.setItem('chinese_review_list', JSON.stringify(reviewList));
+            }
+
+            startScreen.style.display = "flex";
+        }
+    </script>
+</body>
+</html>
